@@ -1,11 +1,8 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.OpenApi.Models;
 using ShareableURLs.Data;
 using ShareableURLs.DTOs;
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,14 +12,14 @@ builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen(option =>
 {
-    option.SwaggerDoc("v1", new OpenApiInfo { Title = "Test API", Version = "v1" });
+    option.SwaggerDoc("v1", new OpenApiInfo { Title = "Shareable URLs", Version = "v1" });
+
     option.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
         Description = "Please enter a valid token",
         Name = "Authorization",
         Type = SecuritySchemeType.Http,
-        BearerFormat = "JWT",
         Scheme = "Bearer"
     });
     option.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -32,8 +29,8 @@ builder.Services.AddSwaggerGen(option =>
             {
                 Reference = new OpenApiReference
                 {
-                    Type=ReferenceType.SecurityScheme,
-                    Id="Bearer"
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
                 }
             },
             new string[]{}
@@ -45,35 +42,9 @@ builder.Services.AddScoped<BrandRepository>();
 builder.Services.AddScoped<CategoryRepository>();
 builder.Services.AddScoped<ProductRepository>();
 
-var validIssuer = builder.Configuration.GetValue<string>("JwtTokenSettings:ValidIssuer");
-var validAudience = builder.Configuration.GetValue<string>("JwtTokenSettings:ValidAudience");
-var symmetricSecurityKey = builder.Configuration.GetValue<string>("JwtTokenSettings:SymmetricSecurityKey");
-
-builder.Services.AddAuthentication(options => {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-    .AddJwtBearer(options =>
-    {
-        options.IncludeErrorDetails = true;
-        options.TokenValidationParameters = new TokenValidationParameters()
-        {
-            ClockSkew = TimeSpan.Zero,
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = validIssuer,
-            ValidAudience = validAudience,
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(symmetricSecurityKey!)
-            ),
-        };
-    });
-
-builder.Services.AddAuthorization();
-
+builder.Services
+    .AddAuthentication()
+    .AddBearerToken();
 
 var app = builder.Build();
 
@@ -91,27 +62,14 @@ if (app.Environment.IsDevelopment())
 
 app.MapPost("/login", (LoginDTO dto) =>
     {
-        IEnumerable<Claim> claims = new List<Claim>()
-        {
-            new Claim(ClaimTypes.NameIdentifier, dto.Username)
-        };
+        var claimsPrincipal = new ClaimsPrincipal(
+           new ClaimsIdentity(
+             new[] { new Claim(ClaimTypes.Name, dto.Username) },
+             BearerTokenDefaults.AuthenticationScheme
+           )
+         );
 
-        var token = new JwtSecurityToken(
-            validIssuer,
-            validAudience,
-            claims,
-            expires: DateTime.UtcNow.AddMinutes(15),
-            signingCredentials: new SigningCredentials(
-                new SymmetricSecurityKey(
-                    Encoding.UTF8.GetBytes(symmetricSecurityKey!)
-                ),
-                SecurityAlgorithms.HmacSha256
-            )
-        );
-
-        var tokenHandler = new JwtSecurityTokenHandler();
-
-        return tokenHandler.WriteToken(token);
+        return Results.SignIn(claimsPrincipal);
     });
 
 app.Run();
