@@ -32,7 +32,7 @@ You can call the `/login` endpoint with any random username & password.
 
 <hr/>
 
-Then you can use the Access Token inside the Swagger UI to call the rest protected endpoints.
+Then you can use the Access Token inside the Swagger UI to call the other protected endpoints.
 
 ![image](https://github.com/Toyota-Iraq/Assignment-ShareableURLs/assets/35940104/e8bcca79-2736-4e1a-84a7-e174ce1b70e2)
 
