@@ -1,45 +1,56 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using ShareableURLs.Data;
 using ShareableURLs.DTOs;
+using System;
 
-namespace ShareableURLs.Controllers;
-
-[Route("api/[controller]")]
-[ApiController]
-public class BrandsController : ControllerBase
+namespace ShareableURLs.Controllers
 {
-    private readonly BrandRepository repository;
-    public BrandsController(BrandRepository brandRepository)
+    [Route("api/[controller]")]
+    [ApiController]
+    public class BrandsController : ControllerBase
     {
-        this.repository = brandRepository;
-    }
+        private readonly BrandRepository repository;
 
-    [HttpGet("")]
-    public ActionResult<BrandDTO> List()
-    {
-        return Ok(this.repository.List());
-    }
+        public BrandsController(BrandRepository brandRepository)
+        {
+            this.repository = brandRepository;
+        }
 
-    [HttpGet("{id}")]
-    public ActionResult<BrandDTO> Find(long id)
-    {
-        var item = this.repository.Find(id);
+        [HttpGet("{id}/get-shareable-url")]
+        public ActionResult<string> GetShareableURL(long id)
+        {
+            string token = GenerateToken(id);
+            string shareableUrl = $"{Request.Scheme}://{Request.Host}/api/brands/{id}/share?token={token}";
+            return Ok(shareableUrl);
+        }
 
-        if (item is null)
-            return NotFound();
+        [HttpGet("{id}/share")]
+        public ActionResult<BrandDTO> Share(long id, [FromQuery] string token)
+        {
+            if (ValidateToken(token, id)) 
+            {
+                var brand = repository.Find(id);
+                if (brand != null)
+                    return Ok(brand);
+                else
+                    return NotFound();
+            }
+            else
+            {
+                return Unauthorized();
+            }
+        }
 
-        return Ok(item);
-    }
+        private string GenerateToken(long id)
+        {
+          
+            return Guid.NewGuid().ToString();
+        }
 
-    [HttpGet("{id}/get-shareable-url")]
-    public ActionResult<string> GetShareableURL(long id)
-    {
-        return Ok(Request.Host + Url.Action(nameof(Share), new { id = id }));
-    }
-
-    [HttpGet("{id}/share")]
-    public ActionResult<BrandDTO> Share(long id)
-    {
-        return Find(id);
+        private bool ValidateToken(string token, long id)
+        {
+         
+            return !string.IsNullOrEmpty(token);
+        }
     }
 }
